@@ -99,6 +99,7 @@ public:
 	String getAutoConnect();
 	String getNetworkStatus();
 	AIS_NB_BC95_CEREG getEPSNetworkStatus();
+	String getPLMN();
 	//bool setAPN(String apn);
 	String getAPN();
 

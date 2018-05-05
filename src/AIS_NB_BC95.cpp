@@ -272,6 +272,26 @@ String AIS_NB_BC95:: getNetworkStatus(){
 
 	return(out);
 }
+
+String AIS_NB_BC95:: getPLMN(){
+	// +COPS:0,2,"52003"
+	AIS_NB_BC95_RES res;
+	char *resData, *result;
+
+	_Serial->println(F("AT+COPS=0"));
+	wait_rx_bc(500,F("OK"));
+	_Serial->println(F("AT+COPS?"));
+	res = wait_rx_bc(2000,F("+COPS"));
+	if(res.status){
+		// if (debug) Serial.println("# Get PLMN Result : " + res.data);
+		resData = (char*) res.data.c_str();
+		result = strchr(resData, '"');
+		if(result == NULL)
+			return "";
+		return String((char*) strtok(result+1, "\""));
+	}
+	return "";
+}
 /*
 bool AIS_NB_BC95:: setAPN(String apn)
 {
@@ -508,79 +528,79 @@ UDPSend AIS_NB_BC95:: sendUDPmsg( String addressI,String port,unsigned int len,c
 
 UDPReceive AIS_NB_BC95:: waitResponse()
 {
-  unsigned long current=millis();
-  UDPReceive rx_ret;
+	unsigned long current=millis();
+	UDPReceive rx_ret;
 
-  if(en_rcv && (current-previous>=250) && !(_Serial->available()))
-  {
-	  _Serial->println(F("AT+NSORF=0,100"));
-	  //Serial.println(F("AT+NSORF=0,100"));
-	  previous=current;
-  }
+	if(en_rcv && (current-previous>=250) && !(_Serial->available()))
+	{
+		_Serial->println(F("AT+NSORF=0,100"));
+		//Serial.println(F("AT+NSORF=0,100"));
+		previous=current;
+	}
 
-  if(_Serial->available())
-  {
+	if(_Serial->available())
+	{
 	char data=(char)_Serial->read();
 	if(data=='\n' || data=='\r')
 	{
-	  if(k>2)
-	  {
+		if(k>2)
+		{
 		end=true;
 		k=0;
-	  }
-	  k++;
+		}
+		k++;
 	}
 	else
 	{
-	  input+=data;
+		input+=data;
 	}
 	//if(debug) Serial.println(input);
-  }
-  if(end){
-	  if(input.indexOf(F("+NSONMI:"))!=-1)
-	  {
-		  //if(debug) Serial.print(F("send_NSOMI: "));
-		  //if(debug) Serial.println(input);
-		  if(input.indexOf(F("+NSONMI:"))!=-1)
-		  {
+	}
+	if(end){
+		if(input.indexOf(F("+NSONMI:"))!=-1)
+		{
+			//if(debug) Serial.print(F("send_NSOMI: "));
+			//if(debug) Serial.println(input);
+			if(input.indexOf(F("+NSONMI:"))!=-1)
+			{
 			//if(debug) Serial.print(F("found NSONMI "));
 			_Serial->println(F("AT+NSORF=0,100"));
 			input=F("");
 			send_NSOMI=true;
-		  }
-		  end=false;
-	  }
-	  else
+			}
+			end=false;
+		}
+		else
 		{
-		  //if(debug) Serial.print(F("get buffer: "));
-		  //if(debug) Serial.println(input);
+			//if(debug) Serial.print(F("get buffer: "));
+			//if(debug) Serial.println(input);
 
-		  end=false;
+			end=false;
 
 			int index1 = input.indexOf(F(","));
 			if(index1!=-1)
 			{
-			  int index2 = input.indexOf(F(","),index1+1);
+				int index2 = input.indexOf(F(","),index1+1);
 
-			  int index3 = input.indexOf(F(","),index2+1);
-			  int index4 = input.indexOf(F(","),index3+1);
-			  int index5 = input.indexOf(F(","),index4+1);
-			  int index6 = input.indexOf(F("\r"));
+				int index3 = input.indexOf(F(","),index2+1);
+				int index4 = input.indexOf(F(","),index3+1);
+				int index5 = input.indexOf(F(","),index4+1);
+				int index6 = input.indexOf(F("\r"));
 
-			  rx_ret.socket = input.substring(0,index1).toInt();
-			  rx_ret.ip_address = input.substring(index1+1,index2);
-			  rx_ret.port = input.substring(index2+1,index3).toInt();
-			  rx_ret.length = input.substring(index3+1,index4).toInt();
-			  rx_ret.data = input.substring(index4+1,index5);
-			  rx_ret.remaining_length = input.substring(index5+1,index6).toInt();
+				rx_ret.socket = input.substring(0,index1).toInt();
+				rx_ret.ip_address = input.substring(index1+1,index2);
+				rx_ret.port = input.substring(index2+1,index3).toInt();
+				rx_ret.length = input.substring(index3+1,index4).toInt();
+				rx_ret.data = input.substring(index4+1,index5);
+				rx_ret.remaining_length = input.substring(index5+1,index6).toInt();
 
-			  if (debug) receive_UDP(rx_ret);
+				if (debug) receive_UDP(rx_ret);
 
-		   }
+			 }
 
-		  send_NSOMI=false;
-		  input=F("");
-		  }
+			send_NSOMI=false;
+			input=F("");
+			}
 		}
 		return rx_ret;
 }//end waitResponse
@@ -654,56 +674,56 @@ AIS_NB_BC95_RES AIS_NB_BC95:: wait_rx_bc(long tout,String str_wait)
 //Util Function
 void AIS_NB_BC95::printHEX(char *str)
 {
-  char *hstr;
-  hstr=str;
-  char out[3]="";
-  int i=0;
-  bool flag=false;
-  while(*hstr)
-  {
+	char *hstr;
+	hstr=str;
+	char out[3]="";
+	int i=0;
+	bool flag=false;
+	while(*hstr)
+	{
 	flag=itoa((int)*hstr,out,16);
 	
 	if(flag)
 	{
-	  _Serial->print(out);
+		_Serial->print(out);
 
-	  if(debug)
-	  {
+		if(debug)
+		{
 		Serial.print(out);
-	  }
-	  
+		}
+		
 	}
 	hstr++;
-  }
+	}
 }
 String AIS_NB_BC95:: toString(String dat)
 {
 	String str="";
 	for(int x=0;x<dat.length();x+=2)
-  {
-	  char c =  char_to_byte(dat[x])<<4 | char_to_byte(dat[x+1]);
-	  str += c;
-  }
-  return(str);
+	{
+		char c =  char_to_byte(dat[x])<<4 | char_to_byte(dat[x+1]);
+		str += c;
+	}
+	return(str);
 }
 String AIS_NB_BC95:: str2HexStr(String strin)
 {
-  int lenuse = strin.length();
-  char charBuf[lenuse*2-1];
-  char strBuf[lenuse*2-1];
-  String strout = "";
-  strin.toCharArray(charBuf,lenuse*2) ;
-  for (int i = 0; i < lenuse; i++)
-  {
+	int lenuse = strin.length();
+	char charBuf[lenuse*2-1];
+	char strBuf[lenuse*2-1];
+	String strout = "";
+	strin.toCharArray(charBuf,lenuse*2) ;
+	for (int i = 0; i < lenuse; i++)
+	{
 	sprintf(strBuf, "%02X", charBuf[i]);
 
 	if (String(strBuf) != F("00") )
 	{
-		   strout += strBuf;
+			 strout += strBuf;
 	}
-  }
+	}
 
-  return strout;
+	return strout;
 }
 
 char AIS_NB_BC95:: char_to_byte(char c)
@@ -720,21 +740,21 @@ char AIS_NB_BC95:: char_to_byte(char c)
 
 void AIS_NB_BC95:: receive_UDP(UDPReceive rx)
 {
-  String dataStr;
-  Serial.println(F("################################################################"));
-  Serial.println(F("# Incoming Data"));
-  Serial.println("# IP--> " + rx.ip_address);
-  Serial.println("# Port--> " + String(rx.port));
-  Serial.println("# Length--> " + String(rx.length));
-  if(sendMode == MODE_STRING_HEX)
-  {
+	String dataStr;
+	Serial.println(F("################################################################"));
+	Serial.println(F("# Incoming Data"));
+	Serial.println("# IP--> " + rx.ip_address);
+	Serial.println("# Port--> " + String(rx.port));
+	Serial.println("# Length--> " + String(rx.length));
+	if(sendMode == MODE_STRING_HEX)
+	{
 		Serial.println("# Data--> " + rx.data);
-  }
-  else
-  {
+	}
+	else
+	{
 		dataStr = toString(rx.data);
 		Serial.println("# Data--> " + dataStr);
-  }
-  Serial.println("# Remaining length--> " + String(rx.remaining_length));
-  Serial.println(F("################################################################"));
+	}
+	Serial.println("# Remaining length--> " + String(rx.remaining_length));
+	Serial.println(F("################################################################"));
 }

@@ -75,6 +75,7 @@ void debugEPS(){
   Serial.print(F("    Tracking Area Code: 0x")); Serial.println(result.TAC, HEX);
   Serial.print(F("    E-UTRAN cell ID   : 0x")); Serial.println(result.ECI, HEX);
   Serial.print(F("    access technology : 0x")); Serial.println(result.AcT, DEC);
+  Serial.print(F("Operator MNC+MMC Code : ")); Serial.println(AISnb.getPLMN());
 }
 
 void setup(){ 
