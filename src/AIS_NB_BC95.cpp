@@ -7,6 +7,8 @@ Released for private use
 */
 
 #include "AIS_NB_BC95.h"
+#include <string.h>
+#include <stdlib.h>
 
 //################### Buffer #######################
 String input;
@@ -32,10 +34,9 @@ AIS_NB_BC95::AIS_NB_BC95()
 	Event_debug =  event_null;
 }
 
-void AIS_NB_BC95:: setupDevice(String serverPort)
-{
+void AIS_NB_BC95:: setupDeviceWithoutAttachNB(){
 	myserial.begin(9600);
-    _Serial = &myserial;
+	_Serial = &myserial;
 
 	Serial.println(F("############ AIS_NB_BC95 Library by AIS/DEVI V1.0.5 ############"));
 	reset();
@@ -48,6 +49,11 @@ void AIS_NB_BC95:: setupDevice(String serverPort)
 	String imsi = getIMSI();
 	if (debug) Serial.print(F("# IMSI SIM-->  "));
 	if (debug) Serial.println(imsi);
+}
+
+void AIS_NB_BC95:: setupDevice(String serverPort)
+{
+	setupDeviceWithoutAttachNB();
 	
 	attachNB(serverPort);
 	createUDPSocket(serverPort);
@@ -75,7 +81,7 @@ void AIS_NB_BC95:: rebootModule()
 	{
 		if (debug) Serial.print(F("."));
 	}
-    _Serial->flush();
+	_Serial->flush();
 	delay(5000);
 }
 
@@ -123,8 +129,8 @@ String AIS_NB_BC95:: getFirmwareVersion()
 	_Serial->println(F("AT+CGMR"));
 	AIS_NB_BC95_RES res = wait_rx_bc(1000,F("OK"));
 	String out = res.temp;
-    //if (debug){Serial.println(out);}
-    out.replace(F("OK"),"");
+	//if (debug){Serial.println(out);}
+	out.replace(F("OK"),"");
 	out = out.substring(0,out.length());
 	//out = out.substring(10,28);
 	res = wait_rx_bc(500,F("OK"));
@@ -135,7 +141,7 @@ String AIS_NB_BC95:: getIMSI()
 	_Serial->println(F("AT+CIMI"));
 	AIS_NB_BC95_RES res = wait_rx_bc(1000,F("OK"));
 	String out = res.temp;
-    out.replace(F("OK"),"");
+	out.replace(F("OK"),"");
 	out = out.substring(0,out.length());
 	res = wait_rx_bc(500,F("OK"));
 	return (out);
@@ -200,37 +206,70 @@ bool AIS_NB_BC95:: setAutoConnectOff()
 	return(res.status);
 }
 
-String AIS_NB_BC95:: getNetworkStatus()
-{
-	String out = "";
-	String data = "";
+AIS_NB_BC95_CEREG AIS_NB_BC95:: parseEPSNetworkStatus(char *buffer){
+	AIS_NB_BC95_CEREG res = {AIS_NB_BC95_CEREG_STATUS_UNKNOW, AIS_NB_BC95_CEREG_STATUS_UNKNOW, 0, 0, 0};
+	char *data, *value;
+
+	data = strchr(buffer, ':');
+	if(data == NULL) return res;
+
+	value = strtok(data+1, ",\r\n");
+	if(value == NULL) return res;
+	res.status = atoi(value);
+
+	value = strtok(NULL, ",\r\n");
+	if(value == NULL) return res;
+	res.EPS_status = atoi(value);
+
+	value = strtok(NULL, ",\r\n");
+	if(value == NULL) return res;
+	res.TAC = (unsigned int)(strtoul(value, (char **)NULL, 16) & 0xFFFF); // Mask to get only last 2 bytes
+
+	value = strtok(NULL, ",\r\n");
+	if(value == NULL) return res;
+	res.ECI = strtoul(value, (char **)NULL, 16); // No need to mask since `unsigned long` is 4-bytes.
+
+	value = strtok(NULL, ",\r\n");
+	if(value == NULL) return res;
+	res.AcT = atoi(value);
+
+	return res;
+}
+
+AIS_NB_BC95_CEREG AIS_NB_BC95:: getEPSNetworkStatus(){
+	AIS_NB_BC95_RES res;
+	AIS_NB_BC95_CEREG result = {AIS_NB_BC95_CEREG_STATUS_UNKNOW, 0, 0, 0, 0};
 
 	_Serial->println(F("AT+CEREG=2"));
-	AIS_NB_BC95_RES res = wait_rx_bc(500,F("OK"));
+	wait_rx_bc(500,F("OK"));
 	_Serial->println(F("AT+CEREG?"));
-	 res = wait_rx_bc(2000,F("+CEREG"));
-     if(res.status)
-	{
-		data = res.data;
-		int index = data.indexOf(F(":"));
-		int index2 = data.indexOf(F(","));
-		int index3 = data.indexOf(F(","),index2+1);
-		out = data.substring(index2+1,index2+2);
-		if (out == F("1"))
-		{
-			out = F("Registered");
-		}else if (out == "0")
-		{
-			out = F("Not Registered");
-		}else if (out == "2")
-		{
-			out = F("Trying");
+	res = wait_rx_bc(2000,F("+CEREG"));
+	if(res.status){
+		if(debug){
+			Serial.print("# Get CEREG Status : ");
+			Serial.println(res.data);
 		}
+		result = parseEPSNetworkStatus((char*) res.data.c_str());
+	}
+	
+	wait_rx_bc(1000,F("OK"));
+	_Serial->flush();
+	return(result);
+}
+
+String AIS_NB_BC95:: getNetworkStatus(){
+	String out = "";
+	AIS_NB_BC95_CEREG data = getEPSNetworkStatus();
+
+	if (data.EPS_status == 1){
+		out = F("Registered");
+	}else if (data.EPS_status == 0){
+		out = F("Not Registered");
+	}else if (data.EPS_status == 2){
+		out = F("Trying");
+	}
 	if (debug) Serial.println("# Get Network Status : " + out);
 
-	}
-	res = wait_rx_bc(1000,F("OK"));
-	_Serial->flush();
 	return(out);
 }
 /*
@@ -278,11 +317,10 @@ bool AIS_NB_BC95:: attachNB(String serverPort)
 				setAutoConnectOn();
 				cgatt(1);
 				delay(3000);
-				if(getNBConnect())
-					{ 				  
-					  ret=true;
-					  break;
-					}
+				if(getNBConnect()){
+					ret=true;
+					break;
+				}
 				Serial.print(F("."));
 		}
 	} else
@@ -293,7 +331,7 @@ bool AIS_NB_BC95:: attachNB(String serverPort)
 	if (ret)
 	{
 		if (debug) Serial.print(F("> Connected"));
-	    createUDPSocket(serverPort);
+		createUDPSocket(serverPort);
 	}
 	else {
 			if (debug) Serial.print(F("> Disconnected"));
@@ -308,11 +346,12 @@ bool AIS_NB_BC95:: detachNB()
 	if (debug) Serial.print(F("# Disconnecting NB-IoT Network"));
 	cgatt(0);
 	delay(1000);
-	for(int i=1;i<60;i+=1)
-	{
+	for(int i=1;i<60;i+=1){
 		Serial.print(F("."));
-		if(!getNBConnect())
-		{ ret=true; break;}
+		if(!getNBConnect()){ 
+			ret=true; 
+			break;
+		}
 
 	}
 	if (debug) Serial.println(F("> Disconnected"));
@@ -334,7 +373,7 @@ bool AIS_NB_BC95:: getNBConnect()
 	bool ret;
 	if(res.status)
 	{
-        if(res.data.indexOf(F("+CGATT:0"))!=-1)
+		if(res.data.indexOf(F("+CGATT:0"))!=-1)
 			ret = false;
 		if(res.data.indexOf(F("+CGATT:1"))!=-1)
 			ret = true;
@@ -393,11 +432,11 @@ UDPSend AIS_NB_BC95:: sendUDPmsg( String addressI,String port,unsigned int len,c
 	sendMode = send_mode;
 
 	UDPSend ret;
-    if(!attachNB(port))
-    {
+	if(!attachNB(port))
+	{
 		if (debug) Serial.println("# >Disconnected");
 		return ret;
-    }
+	}
 	if (debug) Serial.println(F("\n################################################################"));
 	if (debug) Serial.print(F("# Sending Data IP="));
 	if (debug) Serial.print(addressI);
@@ -454,7 +493,7 @@ UDPSend AIS_NB_BC95:: sendUDPmsg( String addressI,String port,unsigned int len,c
 	ret.length = 0;
 	if(res.status)
 	{
-	    ret.status = true;
+		ret.status = true;
 		int index = res.temp.indexOf(F(","));
 		int index2 = res.temp.indexOf(F("O"));
 		ret.socket = res.temp.substring(index-1,index).toInt();
@@ -474,54 +513,54 @@ UDPReceive AIS_NB_BC95:: waitResponse()
 
   if(en_rcv && (current-previous>=250) && !(_Serial->available()))
   {
-      _Serial->println(F("AT+NSORF=0,100"));
+	  _Serial->println(F("AT+NSORF=0,100"));
 	  //Serial.println(F("AT+NSORF=0,100"));
-      previous=current;
+	  previous=current;
   }
 
   if(_Serial->available())
   {
-    char data=(char)_Serial->read();
-    if(data=='\n' || data=='\r')
-    {
-      if(k>2)
-      {
-        end=true;
-        k=0;
-      }
-      k++;
-    }
-    else
-    {
-      input+=data;
-    }
-    //if(debug) Serial.println(input);
+	char data=(char)_Serial->read();
+	if(data=='\n' || data=='\r')
+	{
+	  if(k>2)
+	  {
+		end=true;
+		k=0;
+	  }
+	  k++;
+	}
+	else
+	{
+	  input+=data;
+	}
+	//if(debug) Serial.println(input);
   }
   if(end){
-      if(input.indexOf(F("+NSONMI:"))!=-1)
-      {
-          //if(debug) Serial.print(F("send_NSOMI: "));
-          //if(debug) Serial.println(input);
-          if(input.indexOf(F("+NSONMI:"))!=-1)
-          {
-            //if(debug) Serial.print(F("found NSONMI "));
-            _Serial->println(F("AT+NSORF=0,100"));
-            input=F("");
-            send_NSOMI=true;
-          }
-          end=false;
-      }
-      else
-        {
-          //if(debug) Serial.print(F("get buffer: "));
-          //if(debug) Serial.println(input);
+	  if(input.indexOf(F("+NSONMI:"))!=-1)
+	  {
+		  //if(debug) Serial.print(F("send_NSOMI: "));
+		  //if(debug) Serial.println(input);
+		  if(input.indexOf(F("+NSONMI:"))!=-1)
+		  {
+			//if(debug) Serial.print(F("found NSONMI "));
+			_Serial->println(F("AT+NSORF=0,100"));
+			input=F("");
+			send_NSOMI=true;
+		  }
+		  end=false;
+	  }
+	  else
+		{
+		  //if(debug) Serial.print(F("get buffer: "));
+		  //if(debug) Serial.println(input);
 
-          end=false;
+		  end=false;
 
-            int index1 = input.indexOf(F(","));
-            if(index1!=-1)
-            {
-              int index2 = input.indexOf(F(","),index1+1);
+			int index1 = input.indexOf(F(","));
+			if(index1!=-1)
+			{
+			  int index2 = input.indexOf(F(","),index1+1);
 
 			  int index3 = input.indexOf(F(","),index2+1);
 			  int index4 = input.indexOf(F(","),index3+1);
@@ -537,12 +576,12 @@ UDPReceive AIS_NB_BC95:: waitResponse()
 
 			  if (debug) receive_UDP(rx_ret);
 
-           }
+		   }
 
-          send_NSOMI=false;
-          input=F("");
-          }
-        }
+		  send_NSOMI=false;
+		  input=F("");
+		  }
+		}
 		return rx_ret;
 }//end waitResponse
 
@@ -592,7 +631,7 @@ AIS_NB_BC95_RES AIS_NB_BC95:: wait_rx_bc(long tout,String str_wait)
 				res=1;
 				flag_out=0;
 			}
-		    else if(input.indexOf(F("ERROR"))!=-1)
+			else if(input.indexOf(F("ERROR"))!=-1)
 			{
 				res=0;
 				flag_out=0;
@@ -622,19 +661,19 @@ void AIS_NB_BC95::printHEX(char *str)
   bool flag=false;
   while(*hstr)
   {
-    flag=itoa((int)*hstr,out,16);
-    
-    if(flag)
-    {
-      _Serial->print(out);
+	flag=itoa((int)*hstr,out,16);
+	
+	if(flag)
+	{
+	  _Serial->print(out);
 
-      if(debug)
-      {
-        Serial.print(out);
-      }
-      
-    }
-    hstr++;
+	  if(debug)
+	  {
+		Serial.print(out);
+	  }
+	  
+	}
+	hstr++;
   }
 }
 String AIS_NB_BC95:: toString(String dat)
@@ -642,7 +681,7 @@ String AIS_NB_BC95:: toString(String dat)
 	String str="";
 	for(int x=0;x<dat.length();x+=2)
   {
-      char c =  char_to_byte(dat[x])<<4 | char_to_byte(dat[x+1]);
+	  char c =  char_to_byte(dat[x])<<4 | char_to_byte(dat[x+1]);
 	  str += c;
   }
   return(str);
@@ -656,12 +695,12 @@ String AIS_NB_BC95:: str2HexStr(String strin)
   strin.toCharArray(charBuf,lenuse*2) ;
   for (int i = 0; i < lenuse; i++)
   {
-    sprintf(strBuf, "%02X", charBuf[i]);
+	sprintf(strBuf, "%02X", charBuf[i]);
 
-    if (String(strBuf) != F("00") )
-    {
-           strout += strBuf;
-    }
+	if (String(strBuf) != F("00") )
+	{
+		   strout += strBuf;
+	}
   }
 
   return strout;

@@ -1,3 +1,11 @@
+/*!
+ * @file AIS_NB_BC95.h
+ *
+ * This is part of AIS's NB-IoT module (Quectel BC95) driver for the Arduino platform.  It is
+ * designed specifically to work with the AIS DEVIO NB-SHIELD I.
+ *
+ */
+
 #ifndef AIS_NB_BC95_h
 #define AIS_NB_BC95_h
 
@@ -12,6 +20,8 @@
 #if ATLSOFTSERIAL 
 	#include "AltSoftSerial.h"
 #endif
+
+#define AIS_NB_BC95_CEREG_STATUS_UNKNOW 0xFF
 
 struct AIS_NB_BC95_RES
 {
@@ -51,6 +61,20 @@ struct pingRESP
 	String ttl;
 	String rtt;
 };
+/**
+ * @brief EPS Network Registration Status.
+ *
+ * For more information, Read Quectel's BC95 AT Command Doument, section 3.7. 
+ * AT+CEREG EPS Network Registration Status.
+ */
+struct AIS_NB_BC95_CEREG{
+	unsigned char status; /**< Type of network registration and location information unsolicited result code */
+	unsigned char EPS_status; /**<  EPS registration status */
+	unsigned int TAC; /**< tracking area code */
+	unsigned long ECI; /**< E-UTRAN cell ID */
+	unsigned char AcT; /**< access technology */
+};
+
 class AIS_NB_BC95
 {
 public:
@@ -66,7 +90,7 @@ public:
 	//General
 	String getFirmwareVersion();
 	String getIMEI();
-    String getIMSI();
+	String getIMSI();
 	pingRESP pingIP(String IP);
 
 	//Network
@@ -74,13 +98,15 @@ public:
 	bool setAutoConnectOff();
 	String getAutoConnect();
 	String getNetworkStatus();
-    //bool setAPN(String apn);
+	AIS_NB_BC95_CEREG getEPSNetworkStatus();
+	//bool setAPN(String apn);
 	String getAPN();
 
 
 	bool cgatt(unsigned char mode);
 	bool getNBConnect();
 	
+	void setupDeviceWithoutAttachNB();
 	void setupDevice(String serverPort);
 	bool attachNB(String serverPort);
 	bool detachNB();
@@ -90,7 +116,7 @@ public:
 
 	void createUDPSocket(String port);
 
-    UDPSend sendUDPmsg(String addressI,String port,String data);
+	UDPSend sendUDPmsg(String addressI,String port,String data);
 	UDPSend sendUDPmsg(String addressI,String port,unsigned int len,char *data,unsigned char send_mode);
 	UDPSend sendUDPmsgStr(String addressI,String port,String data);
 	
@@ -106,10 +132,11 @@ public:
 	void receive_UDP(UDPReceive rx);
 
 private:
-		AIS_NB_BC95_RES wait_rx_bc(long tout,String str_wait);
+	AIS_NB_BC95_RES wait_rx_bc(long tout,String str_wait);
+	AIS_NB_BC95_CEREG parseEPSNetworkStatus(char *buffer);
 
 protected:
-	 Stream *_Serial;	
+	Stream *_Serial;
 };
 
 #endif

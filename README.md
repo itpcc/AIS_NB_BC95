@@ -2,6 +2,8 @@
 AIS NB-IoT Library is designed for `DEVIO NB-SHIELD I` to connect with your own IoT Platform/ Server. 
 The library is using Software Serial for communication with Arduino board.
 
+You can read the original AT command document at (Quectel's website)[https://www.quectel.com/UploadImage/Downlad/Quectel_BC95_AT_Commands_Manual_V1.9.pdf].
+
 ## Function List:
 
 ### General Function:
