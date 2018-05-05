@@ -5,6 +5,7 @@ The library is using Software Serial for communication with Arduino board.
 ## Function List:
 
 ### General Function:
+```
 	debug(<Boolean>)
 		○ True : Print Log on Serial Monitor
 		○ False: No Log on Serial Monitor
@@ -16,12 +17,15 @@ The library is using Software Serial for communication with Arduino board.
 	pingIP(serverIP)
 		○ Return type: pingRESP
 		○ Value: addr, ttl, rtt
+```
 
 ### Send Data:
+```
 	sendUDPmsgStr(<serverIP>,< serverPort>,<udpData>)
 		○ Maximum udpData : 512 Bytes
 	sendUDPmsg (<serverIP>,< serverPort>,<udpDataHEX>)
 		○ Maximum udpDataHEX : 512 Bytes
+```
 
 ### Receive Data: 
 	waitResponse()
@@ -33,6 +37,7 @@ The library is using Software Serial for communication with Arduino board.
 `DEVIO NB-SHIELD I` is an extension board for Arduino UNO R3 compatible pinout. 
 [![DEVIO_NB-_SHIELD-_I_2.png](https://s9.postimg.cc/t0elc7f1b/DEVIO_NB-_SHIELD-_I_2.png)](https://postimg.cc/image/a82q8mimz/)
 ### Specifications:
+```
 	Communication Module: Quectel BC95
 	Network Technology: LTE Cat. NB1 (NB-IoT)
 	Frequency: Band 8 (900MHz)
@@ -56,7 +61,7 @@ The library is using Software Serial for communication with Arduino board.
 		o Power Status LED
 	NB-IoT Module Certification
 		○ NBTC, CE, CCC, SRRC, NAL, GCF
-
+```
 # Getting Started
   1. Connect `DEVIO NB-SHIELD I` on Arduino Board
   2. Coding & Compile using Arduino Desktop IDE
